@@ -131,6 +131,11 @@ def main():
         st.session_state.tracks = []
 
     if sp:
+        # 初回アクセス時（トラックリストが空の場合）に自動取得
+        if not st.session_state.tracks:
+            with st.spinner("世界中から音楽を集めています..."):
+                st.session_state.tracks = get_random_tracks(sp, limit=12)
+
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             if st.button("🎲 新しい楽曲を見つける", type="primary"):
