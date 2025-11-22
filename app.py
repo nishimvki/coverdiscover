@@ -39,6 +39,13 @@ st.markdown("""
     div[data-testid="stColumn"] .stButton > button {
         margin-top: 5px;
     }
+    
+    /* 「もっと見る」ボタン専用の中央揃えスタイル */
+    /* 最後のstVerticalBlock内のボタン（もっと見るボタン）を特定してスタイル適用 */
+    /* 注: StreamlitのDOM構造に依存するため、レイアウト変更時に調整が必要になる場合があります */
+    div[data-testid="stVerticalBlock"] > div:last-child .stButton {
+        text-align: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -174,7 +181,8 @@ def main():
             st.write("---")
             
             # 「もっと見る」ボタン（下部）
-            col1_b, col2_b, col3_b = st.columns([1, 2, 1])
+            # 右端に配置 [6, 1]
+            col1_b, col2_b = st.columns([6, 1])
             with col2_b:
                 if st.button("⬇️ もっと見る", key="load_more"):
                     with st.spinner("追加の楽曲を探しています..."):
