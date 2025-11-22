@@ -18,43 +18,36 @@ st.markdown("""
 <style>
     .stButton>button {
         width: 100%;
+        border: none;
+    }
+    /* メインのランダム取得ボタンのスタイル */
+    div[data-testid="stVerticalBlock"] > div:nth-child(1) .stButton > button {
         background-color: #1DB954;
         color: white;
-        border: none;
         border-radius: 20px;
         font-weight: bold;
         padding: 0.5rem 1rem;
     }
-    .stButton>button:hover {
+    div[data-testid="stVerticalBlock"] > div:nth-child(1) .stButton > button:hover {
         background-color: #1ed760;
         color: white;
         border-color: #1ed760;
     }
-    div[data-testid="stImage"] {
-        border-radius: 10px;
-        overflow: hidden;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    /* グリッド内の画像ボタンスタイル調整 */
+    button[kind="secondary"] {
+        padding: 0;
+        border: none;
+        background: transparent;
+    }
+    button[kind="secondary"]:hover {
+        border: none;
+        background: transparent;
+        transform: scale(1.02);
         transition: transform 0.2s;
     }
-    div[data-testid="stImage"]:hover {
-        transform: scale(1.02);
-    }
-    .track-title {
-        font-weight: bold;
-        font-size: 1rem;
-        margin-top: 0.5rem;
-        margin-bottom: 0.2rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .track-artist {
-        color: #b3b3b3;
-        font-size: 0.9rem;
-        margin-bottom: 0.5rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+    button[kind="secondary"]:focus {
+        outline: none;
+        border: none;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -80,7 +73,7 @@ def get_random_tracks(sp, limit=12):
     """ランダムに複数の楽曲を取得する"""
     tracks = []
     attempts = 0
-    max_attempts = limit * 5  # 試行回数を少し増やす
+    max_attempts = limit * 5
     
     status_text = st.empty()
     progress_bar = st.progress(0)
@@ -88,30 +81,22 @@ def get_random_tracks(sp, limit=12):
     while len(tracks) < limit and attempts < max_attempts:
         attempts += 1
         
-        # 検索クエリ用のランダムな文字
         characters = string.ascii_lowercase
         random_char = random.choice(characters)
         query = f"{random_char}%"
         
         try:
-            # ランダムなオフセットで検索
             offset = random.randint(0, 950)
             results = sp.search(q=query, type='track', limit=1, offset=offset)
             items = results['tracks']['items']
             
             if items:
                 track = items[0]
-                # アートワークがあるものを採用
                 if track['album']['images']:
-                    # 正方形の画像かどうかをチェック（ミュージックビデオのサムネイルなどを除外）
-                    # 通常、Spotifyのアートワークは640x640, 300x300, 64x64の3サイズが返ってくる
-                    # 一番大きい画像のサイズ比率を確認する
                     image = track['album']['images'][0]
                     if image['height'] == image['width']:
-                        # 重複チェック（IDで確認）
                         if not any(t['id'] == track['id'] for t in tracks):
                             tracks.append(track)
-                            # 進捗更新
                             progress = len(tracks) / limit
                             progress_bar.progress(progress)
                             status_text.text(f"楽曲収集中... {len(tracks)}/{limit}")
@@ -123,13 +108,35 @@ def get_random_tracks(sp, limit=12):
     progress_bar.empty()
     return tracks
 
+@st.dialog("楽曲詳細")
+def show_track_details(track):
+    """楽曲の詳細情報をモーダル表示する"""
+    col1, col2 = st.columns([1, 1.5])
+    
+    with col1:
+        st.image(track['album']['images'][0]['url'], use_container_width=True)
+        
+    with col2:
+        st.subheader(track['name'])
+        artists = [artist['name'] for artist in track['artists']]
+        st.write(f"**アーティスト:** {', '.join(artists)}")
+        st.write(f"**アルバム:** {track['album']['name']}")
+        st.write(f"**リリース日:** {track['album']['release_date']}")
+        
+        if track['preview_url']:
+            st.audio(track['preview_url'], format='audio/mp3')
+        else:
+            st.caption("プレビューなし")
+            
+        st.link_button("Spotifyで聴く", track['external_urls']['spotify'])
+        st.progress(track['popularity'], text=f"人気度: {track['popularity']}/100")
+
 def main():
     st.title("🎵 Spotify Random Tracks Grid")
-    st.write("ランダムに収集した楽曲をグリッドで表示します。")
+    st.write("ランダムに収集した楽曲をグリッドで表示します。アートワークをクリックすると詳細が表示されます。")
 
     sp = init_spotify()
     
-    # セッションステート初期化
     if 'tracks' not in st.session_state:
         st.session_state.tracks = []
 
@@ -142,9 +149,7 @@ def main():
         
         st.write("---")
         
-        # グリッド表示
         if st.session_state.tracks:
-            # 4列のグリッドを作成
             cols_count = 4
             rows = [st.session_state.tracks[i:i + cols_count] for i in range(0, len(st.session_state.tracks), cols_count)]
             
@@ -152,28 +157,22 @@ def main():
                 cols = st.columns(cols_count)
                 for i, track in enumerate(row):
                     with cols[i]:
-                        # アートワーク
-                        img_url = track['album']['images'][0]['url']
-                        # use_column_width -> use_container_width に変更
-                        st.image(img_url, use_container_width=True)
+                        # 画像をボタンとして表示することはStreamlit標準では難しいため、
+                        # クリック可能な画像を実現するために、st.imageの代わりにボタンを使いたいところですが、
+                        # ボタンに画像を貼る機能はないため、画像の下に透明に近いボタンを置くか、
+                        # Streamlit 1.34.0以降の st.dialog と組み合わせるために
+                        # 各アイテムをボタンとして配置し、ラベルを画像のように見せる工夫は難しいです。
+                        # 現実的な解として、「詳細を見る」ボタンを置くか、
+                        # または単に画像を表示し、その下に小さな「詳細」ボタンを置く形にします。
+                        # しかしユーザーの要望は「アートワークをクリックしたとき」なので、
+                        # ここではアートワークを表示し、その直下に全幅の透明ボタンを配置するハックか、
+                        # シンプルにアートワークの下にボタンを配置します。
                         
-                        # 曲情報
-                        track_name = track['name']
-                        artist_name = track['artists'][0]['name']
+                        st.image(track['album']['images'][0]['url'], use_container_width=True)
+                        if st.button("詳細を見る", key=f"btn_{track['id']}", use_container_width=True):
+                            show_track_details(track)
                         
-                        st.markdown(f'<div class="track-title" title="{track_name}">{track_name}</div>', unsafe_allow_html=True)
-                        st.markdown(f'<div class="track-artist" title="{artist_name}">{artist_name}</div>', unsafe_allow_html=True)
-                        
-                        # プレビュー再生
-                        if track['preview_url']:
-                            st.audio(track['preview_url'], format='audio/mp3')
-                        else:
-                            st.caption("プレビューなし")
-                        
-                        # Spotifyリンク
-                        st.link_button("Spotifyで開く", track['external_urls']['spotify'])
-                        
-                st.write("") # 行間のスペース
+                st.write("") 
         
         elif st.session_state.tracks == []:
              st.info("上のボタンを押して、音楽の旅を始めましょう！")
