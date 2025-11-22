@@ -147,12 +147,12 @@ def main():
                 st.session_state.tracks = initial_tracks
 
         # リフレッシュボタン（上部）
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("🔄 リセットして新しい楽曲を探す", type="primary"):
-                with st.spinner("世界中から音楽を集めています..."):
-                    st.session_state.tracks = get_random_tracks(sp, limit=12)
-                    st.rerun()
+        # col1, col2, col3 = st.columns([1, 2, 1])
+        # with col2:
+        #     if st.button("🔄 リセットして新しい楽曲を探す", type="primary"):
+        #         with st.spinner("世界中から音楽を集めています..."):
+        #             st.session_state.tracks = get_random_tracks(sp, limit=12)
+        #             st.rerun()
         
         st.write("---")
         
