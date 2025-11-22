@@ -59,10 +59,10 @@ def init_spotify():
         return None
 
 def get_random_tracks(sp, limit=12):
-    """ランダムに複数の楽曲を取得する"""
+    """ランダムに複数の楽曲を取得する（高速化版）"""
     tracks = []
     attempts = 0
-    max_attempts = limit * 5
+    max_attempts = 10  # APIコール回数の上限
     
     status_text = st.empty()
     progress_bar = st.progress(0)
@@ -70,26 +70,38 @@ def get_random_tracks(sp, limit=12):
     while len(tracks) < limit and attempts < max_attempts:
         attempts += 1
         
+        # 検索クエリ
         characters = string.ascii_lowercase
         random_char = random.choice(characters)
         query = f"{random_char}%"
         
         try:
-            offset = random.randint(0, 950)
-            results = sp.search(q=query, type='track', limit=1, offset=offset)
+            # 一度に50曲取得（APIの上限）
+            # ランダム性を高めるためにオフセットもランダムにするが、
+            # 範囲を少し狭めてヒット率を優先
+            offset = random.randint(0, 900)
+            results = sp.search(q=query, type='track', limit=50, offset=offset)
             items = results['tracks']['items']
             
-            if items:
-                track = items[0]
+            # シャッフルしてランダム性を確保
+            random.shuffle(items)
+            
+            for track in items:
+                if len(tracks) >= limit:
+                    break
+                    
                 if track['album']['images']:
                     # 正方形フィルタリング
                     image = track['album']['images'][0]
                     if image['height'] == image['width']:
+                        # IDによる重複チェック
                         if not any(t['id'] == track['id'] for t in tracks):
                             tracks.append(track)
-                            progress = len(tracks) / limit
-                            progress_bar.progress(progress)
-                            status_text.text(f"楽曲収集中... {len(tracks)}/{limit}")
+                            
+            # 進捗更新
+            progress = min(len(tracks) / limit, 1.0)
+            progress_bar.progress(progress)
+            status_text.text(f"楽曲収集中... {len(tracks)}/{limit}")
                         
         except Exception:
             continue
