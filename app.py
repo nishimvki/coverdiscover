@@ -21,8 +21,7 @@ st.markdown("""
         width: 100%;
         border: none;
     }
-    /* メインのアクションボタン（ランダム取得・もっと見る） */
-    /* 最初のボタン（リフレッシュ） */
+    /* メインのアクションボタン（ランダム取得） */
     div[data-testid="stVerticalBlock"] > div:nth-child(1) .stButton > button {
         background-color: #1DB954;
         color: white;
@@ -41,8 +40,6 @@ st.markdown("""
     }
     
     /* 「もっと見る」ボタン専用の中央揃えスタイル */
-    /* 最後のstVerticalBlock内のボタン（もっと見るボタン）を特定してスタイル適用 */
-    /* 注: StreamlitのDOM構造に依存するため、レイアウト変更時に調整が必要になる場合があります */
     div[data-testid="stVerticalBlock"] > div:last-child .stButton {
         text-align: center;
     }
@@ -66,14 +63,39 @@ def init_spotify():
         st.error(f"認証エラーが発生しました: {e}")
         return None
 
+def get_random_search_query():
+    """よりランダム性の高い検索クエリを生成する"""
+    # 英字
+    ascii_chars = string.ascii_lowercase
+    # ひらがな（主要なもの）
+    hiragana = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわを"
+    
+    # 検索パターンの決定
+    pattern_type = random.choice(['ascii_2', 'ascii_1_year', 'hiragana_1'])
+    
+    if pattern_type == 'ascii_2':
+        # 2文字の英字
+        char1 = random.choice(ascii_chars)
+        char2 = random.choice(ascii_chars)
+        return f"{char1}{char2}%"
+    elif pattern_type == 'hiragana_1':
+        # 1文字のひらがな
+        char = random.choice(hiragana)
+        return f"{char}%"
+    else:
+        # 1文字の英字 + 年指定
+        char = random.choice(ascii_chars)
+        year = random.randint(1990, 2024)
+        return f"{char}% year:{year}"
+
 def get_random_tracks(sp, limit=24, existing_tracks=None):
-    """ランダムに複数の楽曲を取得する（高速化版）"""
+    """ランダムに複数の楽曲を取得する（高速化・高ランダム性版）"""
     if existing_tracks is None:
         existing_tracks = []
         
     new_tracks = []
     attempts = 0
-    max_attempts = 10
+    max_attempts = 15  # クエリが厳しくなる分、試行回数を増やす
     
     status_text = st.empty()
     progress_bar = st.progress(0)
@@ -81,15 +103,30 @@ def get_random_tracks(sp, limit=24, existing_tracks=None):
     while len(new_tracks) < limit and attempts < max_attempts:
         attempts += 1
         
-        characters = string.ascii_lowercase
-        random_char = random.choice(characters)
-        query = f"{random_char}%"
+        query = get_random_search_query()
         
         try:
-            offset = random.randint(0, 900)
+            # まずヒット数を確認するためにlimit=1で検索
+            # これにより総数を把握し、深いオフセットを指定できるようにする
+            meta_results = sp.search(q=query, type='track', limit=1)
+            total_hits = meta_results['tracks']['total']
+            
+            if total_hits == 0:
+                continue
+                
+            # APIの制約上、オフセットは最大1000まで
+            max_offset = min(total_hits, 1000)
+            
+            # ランダム性を高めるため、0から最大値までの間でランダムにオフセットを決定
+            # 人気のない曲（リストの後ろの方）も出るようにする
+            if max_offset > 50:
+                offset = random.randint(0, max_offset - 50)
+            else:
+                offset = 0
+            
             results = sp.search(q=query, type='track', limit=50, offset=offset)
             items = results['tracks']['items']
-            
+
             random.shuffle(items)
             
             for track in items:
@@ -99,13 +136,16 @@ def get_random_tracks(sp, limit=24, existing_tracks=None):
                 if track['album']['images']:
                     image = track['album']['images'][0]
                     if image['height'] == image['width']:
-                        # 既存のトラックも含めて重複チェック
-                        if not any(t['id'] == track['id'] for t in existing_tracks + new_tracks):
-                            new_tracks.append(track)
+                        # マイナーな曲に絞るため、人気度が低い曲（40以下）のみを採用
+                        # 曲が集まらない場合はこの数値を上げてください
+                        if track['popularity'] <= 40:
+                            # 既存のトラックも含めて重複チェック
+                            if not any(t['id'] == track['id'] for t in existing_tracks + new_tracks):
+                                new_tracks.append(track)
                             
             progress = min(len(new_tracks) / limit, 1.0)
             progress_bar.progress(progress)
-            status_text.text(f"楽曲収集中... {len(new_tracks)}/{limit}")
+            status_text.text(f"楽曲収集中... {len(new_tracks)}/{limit} (Query: {query})")
                         
         except Exception:
             continue
@@ -153,13 +193,7 @@ def main():
                 initial_tracks = get_random_tracks(sp, limit=24)
                 st.session_state.tracks = initial_tracks
 
-        # リフレッシュボタン（上部）
-        # col1, col2, col3 = st.columns([1, 2, 1])
-        # with col2:
-        #     if st.button("🔄 リセットして新しい楽曲を探す", type="primary"):
-        #         with st.spinner("世界中から音楽を集めています..."):
-        #             st.session_state.tracks = get_random_tracks(sp, limit=12)
-        #             st.rerun()
+        # リフレッシュボタンは削除済み
         
         st.write("---")
         
