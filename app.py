@@ -16,11 +16,12 @@ st.set_page_config(page_title="Spotify Random Tracks", page_icon="🎵", layout=
 # CSSでスタイリング
 st.markdown("""
 <style>
+    /* ボタンのデフォルトスタイル */
     .stButton>button {
         width: 100%;
         border: none;
     }
-    /* メインのランダム取得ボタンのスタイル */
+    /* メインのアクションボタン（ランダム取得） */
     div[data-testid="stVerticalBlock"] > div:nth-child(1) .stButton > button {
         background-color: #1DB954;
         color: white;
@@ -33,21 +34,9 @@ st.markdown("""
         color: white;
         border-color: #1ed760;
     }
-    /* グリッド内の画像ボタンスタイル調整 */
-    button[kind="secondary"] {
-        padding: 0;
-        border: none;
-        background: transparent;
-    }
-    button[kind="secondary"]:hover {
-        border: none;
-        background: transparent;
-        transform: scale(1.02);
-        transition: transform 0.2s;
-    }
-    button[kind="secondary"]:focus {
-        outline: none;
-        border: none;
+    /* グリッド内の詳細ボタン */
+    div[data-testid="stColumn"] .stButton > button {
+        margin-top: 5px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -93,6 +82,7 @@ def get_random_tracks(sp, limit=12):
             if items:
                 track = items[0]
                 if track['album']['images']:
+                    # 正方形フィルタリング
                     image = track['album']['images'][0]
                     if image['height'] == image['width']:
                         if not any(t['id'] == track['id'] for t in tracks):
@@ -126,14 +116,14 @@ def show_track_details(track):
         if track['preview_url']:
             st.audio(track['preview_url'], format='audio/mp3')
         else:
-            st.caption("プレビューなし")
+            st.caption("🎵 プレビュー再生は利用できません")
             
         st.link_button("Spotifyで聴く", track['external_urls']['spotify'])
         st.progress(track['popularity'], text=f"人気度: {track['popularity']}/100")
 
 def main():
     st.title("🎵 Spotify Random Tracks Grid")
-    st.write("ランダムに収集した楽曲をグリッドで表示します。アートワークをクリックすると詳細が表示されます。")
+    st.write("ランダムに収集した楽曲をグリッドで表示します。アートワーク下のボタンで詳細を確認できます。")
 
     sp = init_spotify()
     
@@ -157,18 +147,10 @@ def main():
                 cols = st.columns(cols_count)
                 for i, track in enumerate(row):
                     with cols[i]:
-                        # 画像をボタンとして表示することはStreamlit標準では難しいため、
-                        # クリック可能な画像を実現するために、st.imageの代わりにボタンを使いたいところですが、
-                        # ボタンに画像を貼る機能はないため、画像の下に透明に近いボタンを置くか、
-                        # Streamlit 1.34.0以降の st.dialog と組み合わせるために
-                        # 各アイテムをボタンとして配置し、ラベルを画像のように見せる工夫は難しいです。
-                        # 現実的な解として、「詳細を見る」ボタンを置くか、
-                        # または単に画像を表示し、その下に小さな「詳細」ボタンを置く形にします。
-                        # しかしユーザーの要望は「アートワークをクリックしたとき」なので、
-                        # ここではアートワークを表示し、その直下に全幅の透明ボタンを配置するハックか、
-                        # シンプルにアートワークの下にボタンを配置します。
-                        
+                        # アートワーク表示
                         st.image(track['album']['images'][0]['url'], use_container_width=True)
+                        
+                        # 詳細ボタン（クリックでモーダル表示）
                         if st.button("詳細を見る", key=f"btn_{track['id']}", use_container_width=True):
                             show_track_details(track)
                         
