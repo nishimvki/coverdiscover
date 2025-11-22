@@ -59,7 +59,7 @@ def init_spotify():
         st.error(f"認証エラーが発生しました: {e}")
         return None
 
-def get_random_tracks(sp, limit=12, existing_tracks=None):
+def get_random_tracks(sp, limit=24, existing_tracks=None):
     """ランダムに複数の楽曲を取得する（高速化版）"""
     if existing_tracks is None:
         existing_tracks = []
@@ -143,7 +143,7 @@ def main():
         # 初回アクセス時（トラックリストが空の場合）に自動取得
         if not st.session_state.tracks:
             with st.spinner("世界中から音楽を集めています..."):
-                initial_tracks = get_random_tracks(sp, limit=12)
+                initial_tracks = get_random_tracks(sp, limit=24)
                 st.session_state.tracks = initial_tracks
 
         # リフレッシュボタン（上部）
@@ -178,7 +178,7 @@ def main():
             with col2_b:
                 if st.button("⬇️ もっと見る", key="load_more"):
                     with st.spinner("追加の楽曲を探しています..."):
-                        additional_tracks = get_random_tracks(sp, limit=12, existing_tracks=st.session_state.tracks)
+                        additional_tracks = get_random_tracks(sp, limit=24, existing_tracks=st.session_state.tracks)
                         st.session_state.tracks.extend(additional_tracks)
                         st.rerun()
 
