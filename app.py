@@ -80,7 +80,7 @@ def get_random_tracks(sp, limit=12):
     """ランダムに複数の楽曲を取得する"""
     tracks = []
     attempts = 0
-    max_attempts = limit * 3  # 無限ループ防止
+    max_attempts = limit * 5  # 試行回数を少し増やす
     
     status_text = st.empty()
     progress_bar = st.progress(0)
@@ -101,15 +101,20 @@ def get_random_tracks(sp, limit=12):
             
             if items:
                 track = items[0]
-                # アートワークがあるものを採用（プレビューURLはなくても許可）
+                # アートワークがあるものを採用
                 if track['album']['images']:
-                    # 重複チェック（IDで確認）
-                    if not any(t['id'] == track['id'] for t in tracks):
-                        tracks.append(track)
-                        # 進捗更新
-                        progress = len(tracks) / limit
-                        progress_bar.progress(progress)
-                        status_text.text(f"楽曲収集中... {len(tracks)}/{limit}")
+                    # 正方形の画像かどうかをチェック（ミュージックビデオのサムネイルなどを除外）
+                    # 通常、Spotifyのアートワークは640x640, 300x300, 64x64の3サイズが返ってくる
+                    # 一番大きい画像のサイズ比率を確認する
+                    image = track['album']['images'][0]
+                    if image['height'] == image['width']:
+                        # 重複チェック（IDで確認）
+                        if not any(t['id'] == track['id'] for t in tracks):
+                            tracks.append(track)
+                            # 進捗更新
+                            progress = len(tracks) / limit
+                            progress_bar.progress(progress)
+                            status_text.text(f"楽曲収集中... {len(tracks)}/{limit}")
                         
         except Exception:
             continue
@@ -149,7 +154,8 @@ def main():
                     with cols[i]:
                         # アートワーク
                         img_url = track['album']['images'][0]['url']
-                        st.image(img_url, use_column_width=True)
+                        # use_column_width -> use_container_width に変更
+                        st.image(img_url, use_container_width=True)
                         
                         # 曲情報
                         track_name = track['name']
