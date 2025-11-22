@@ -21,7 +21,8 @@ st.markdown("""
         width: 100%;
         border: none;
     }
-    /* メインのアクションボタン（ランダム取得） */
+    /* メインのアクションボタン（ランダム取得・もっと見る） */
+    /* 最初のボタン（リフレッシュ） */
     div[data-testid="stVerticalBlock"] > div:nth-child(1) .stButton > button {
         background-color: #1DB954;
         color: white;
@@ -58,57 +59,53 @@ def init_spotify():
         st.error(f"認証エラーが発生しました: {e}")
         return None
 
-def get_random_tracks(sp, limit=12):
+def get_random_tracks(sp, limit=12, existing_tracks=None):
     """ランダムに複数の楽曲を取得する（高速化版）"""
-    tracks = []
+    if existing_tracks is None:
+        existing_tracks = []
+        
+    new_tracks = []
     attempts = 0
-    max_attempts = 10  # APIコール回数の上限
+    max_attempts = 10
     
     status_text = st.empty()
     progress_bar = st.progress(0)
     
-    while len(tracks) < limit and attempts < max_attempts:
+    while len(new_tracks) < limit and attempts < max_attempts:
         attempts += 1
         
-        # 検索クエリ
         characters = string.ascii_lowercase
         random_char = random.choice(characters)
         query = f"{random_char}%"
         
         try:
-            # 一度に50曲取得（APIの上限）
-            # ランダム性を高めるためにオフセットもランダムにするが、
-            # 範囲を少し狭めてヒット率を優先
             offset = random.randint(0, 900)
             results = sp.search(q=query, type='track', limit=50, offset=offset)
             items = results['tracks']['items']
             
-            # シャッフルしてランダム性を確保
             random.shuffle(items)
             
             for track in items:
-                if len(tracks) >= limit:
+                if len(new_tracks) >= limit:
                     break
                     
                 if track['album']['images']:
-                    # 正方形フィルタリング
                     image = track['album']['images'][0]
                     if image['height'] == image['width']:
-                        # IDによる重複チェック
-                        if not any(t['id'] == track['id'] for t in tracks):
-                            tracks.append(track)
+                        # 既存のトラックも含めて重複チェック
+                        if not any(t['id'] == track['id'] for t in existing_tracks + new_tracks):
+                            new_tracks.append(track)
                             
-            # 進捗更新
-            progress = min(len(tracks) / limit, 1.0)
+            progress = min(len(new_tracks) / limit, 1.0)
             progress_bar.progress(progress)
-            status_text.text(f"楽曲収集中... {len(tracks)}/{limit}")
+            status_text.text(f"楽曲収集中... {len(new_tracks)}/{limit}")
                         
         except Exception:
             continue
             
     status_text.empty()
     progress_bar.empty()
-    return tracks
+    return new_tracks
 
 @st.dialog("楽曲詳細")
 def show_track_details(track):
@@ -146,16 +143,20 @@ def main():
         # 初回アクセス時（トラックリストが空の場合）に自動取得
         if not st.session_state.tracks:
             with st.spinner("世界中から音楽を集めています..."):
-                st.session_state.tracks = get_random_tracks(sp, limit=12)
+                initial_tracks = get_random_tracks(sp, limit=12)
+                st.session_state.tracks = initial_tracks
 
+        # リフレッシュボタン（上部）
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            if st.button("🎲 新しい楽曲を見つける", type="primary"):
+            if st.button("🔄 リセットして新しい楽曲を探す", type="primary"):
                 with st.spinner("世界中から音楽を集めています..."):
                     st.session_state.tracks = get_random_tracks(sp, limit=12)
+                    st.rerun()
         
         st.write("---")
         
+        # グリッド表示
         if st.session_state.tracks:
             cols_count = 4
             rows = [st.session_state.tracks[i:i + cols_count] for i in range(0, len(st.session_state.tracks), cols_count)]
@@ -164,17 +165,22 @@ def main():
                 cols = st.columns(cols_count)
                 for i, track in enumerate(row):
                     with cols[i]:
-                        # アートワーク表示
                         st.image(track['album']['images'][0]['url'], use_container_width=True)
-                        
-                        # 詳細ボタン（クリックでモーダル表示）
                         if st.button("詳細を見る", key=f"btn_{track['id']}", use_container_width=True):
                             show_track_details(track)
                         
                 st.write("") 
-        
-        elif st.session_state.tracks == []:
-             st.info("上のボタンを押して、音楽の旅を始めましょう！")
+            
+            st.write("---")
+            
+            # 「もっと見る」ボタン（下部）
+            col1_b, col2_b, col3_b = st.columns([1, 2, 1])
+            with col2_b:
+                if st.button("⬇️ もっと見る", key="load_more"):
+                    with st.spinner("追加の楽曲を探しています..."):
+                        additional_tracks = get_random_tracks(sp, limit=12, existing_tracks=st.session_state.tracks)
+                        st.session_state.tracks.extend(additional_tracks)
+                        st.rerun()
 
 if __name__ == "__main__":
     main()
