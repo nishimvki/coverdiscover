@@ -101,8 +101,8 @@ def get_random_tracks(sp, limit=12):
             
             if items:
                 track = items[0]
-                # アートワークとプレビューURLがあるものだけ採用
-                if track['album']['images'] and track['preview_url']:
+                # アートワークがあるものを採用（プレビューURLはなくても許可）
+                if track['album']['images']:
                     # 重複チェック（IDで確認）
                     if not any(t['id'] == track['id'] for t in tracks):
                         tracks.append(track)
@@ -161,6 +161,8 @@ def main():
                         # プレビュー再生
                         if track['preview_url']:
                             st.audio(track['preview_url'], format='audio/mp3')
+                        else:
+                            st.caption("プレビューなし")
                         
                         # Spotifyリンク
                         st.link_button("Spotifyで開く", track['external_urls']['spotify'])
